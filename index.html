@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Ma position</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+  main { max-width: 26rem; text-align: center; }
+  h1 { font-size: 1.3rem; margin: 0 0 .5rem; }
+  p { margin: .5rem 0; line-height: 1.4; }
+  button { font: inherit; padding: .7rem 1.2rem; margin: .4rem; border-radius: .5rem; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="titre">Localisation en cours…</h1>
+  <p id="msg">Autorise l'accès à la position si ton navigateur le demande.</p>
+  <div id="actions" class="hidden">
+    <button id="reessayer" type="button">Réessayer</button>
+    <button id="retourBtn" type="button">Retour au guide</button>
+  </div>
+</main>
+<script>
+(function () {
+  // Domaines autorisés pour le retour (origine exacte : schéma + hôte + port).
+  var AUTORISES = ["http://nopwd.laurendeau.info:81"];
+
+  var titre = document.getElementById("titre");
+  var msg = document.getElementById("msg");
+  var actions = document.getElementById("actions");
+
+  function afficher(t, m, avecActions) {
+    titre.textContent = t;
+    msg.textContent = m;
+    actions.classList.toggle("hidden", !avecActions);
+  }
+
+  // Lecture et validation de l'adresse de retour.
+  var retour = null;
+  try {
+    var brut = new URLSearchParams(location.search).get("retour");
+    var u = new URL(brut);
+    if (AUTORISES.indexOf(u.origin) !== -1) {
+      u.hash = "";
+      retour = u.toString();
+    }
+  } catch (e) { /* retour reste null */ }
+
+  if (!retour) {
+    afficher("Adresse de retour non autorisée",
+             "Cette page doit être ouverte depuis un guide autorisé.", false);
+    return;
+  }
+
+  function revenir(fragment) {
+    // replace() : la page relais ne reste pas dans l'historique.
+    location.replace(retour + "#" + fragment);
+  }
+
+  function erreurTexte(code) {
+    if (code === 1) return "La permission de position a été refusée.";
+    if (code === 2) return "Position indisponible (GPS ou réseau).";
+    if (code === 3) return "Délai dépassé pour obtenir la position.";
+    return "Erreur de localisation.";
+  }
+
+  function localiser() {
+    if (!("geolocation" in navigator)) { revenir("err=0"); return; }
+    afficher("Localisation en cours…", "Autorise l'accès à la position si ton navigateur le demande.", false);
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        revenir("lat=" + pos.coords.latitude.toFixed(6) +
+                "&lon=" + pos.coords.longitude.toFixed(6) +
+                "&acc=" + Math.round(pos.coords.accuracy) +
+                "&t=" + Date.now());
+      },
+      function (err) {
+        // On affiche l'erreur ici ; le bouton « Retour » renvoie le code au guide.
+        afficher("Position non obtenue", erreurTexte(err.code), true);
+        document.getElementById("retourBtn").onclick = function () { revenir("err=" + err.code); };
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+    );
+  }
+
+  document.getElementById("reessayer").onclick = localiser;
+  localiser();
+})();
+</script>
+</body>
+</html>
